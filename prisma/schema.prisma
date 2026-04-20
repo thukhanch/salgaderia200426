@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Business {
+  id          String   @id @default(cuid())
+  name        String
+  ownerPhone  String
+  description String?
+  hours       Json     // { open: "08:00", close: "18:00", days: [1,2,3,4,5,6] }
+  menu        Json     // [{ id, name, description, price, unit }]
+  config      Json     @default("{}")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  conversations Conversation[]
+  orders        Order[]
+}
+
+model Conversation {
+  id         String    @id @default(cuid())
+  phone      String
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id])
+  messages   Message[]
+  status     String    @default("active")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([phone, businessId])
+  @@index([phone])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  role           String
+  content        String
+  toolCallId     String?
+  toolName       String?
+  toolArgs       Json?
+  createdAt      DateTime     @default(now())
+}
+
+model Order {
+  id              String    @id @default(cuid())
+  businessId      String
+  business        Business  @relation(fields: [businessId], references: [id])
+  phone           String
+  items           Json
+  total           Float?
+  scheduledAt     DateTime?
+  deliveryType    String?
+  address         String?
+  status          String    @default("pending")
+  calendarEventId String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([phone])
+  @@index([businessId])
+}
