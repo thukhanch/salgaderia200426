@@ -4,7 +4,19 @@ import { connect, setMessageHandler } from './whatsapp/client';
 import { processMessage } from './agent/agent';
 import { prisma } from './db/client';
 
-const app = Fastify({ logger: { level: 'info' } });
+const app = Fastify({
+  logger: {
+    level: 'info',
+    serializers: { req: (req) => ({ method: req.method, url: req.url }) },
+  },
+  disableRequestLogging: false,
+});
+
+app.addHook('onRequest', async (req, reply) => {
+  if (req.url.startsWith('/socket.io')) {
+    reply.status(200).send('');
+  }
+});
 
 let businessId = process.env.BUSINESS_ID ?? '';
 
