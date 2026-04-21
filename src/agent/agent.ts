@@ -24,7 +24,13 @@ function buildSystemPrompt(business: Awaited<ReturnType<typeof getBusinessInfo>>
 
   const hours = business.hours as any;
 
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit' });
+  const timeStr = now.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+
   return `Você é o assistente virtual de "${business.name}".
+## Data e hora atual
+Hoje é ${dateStr}, ${timeStr} (horário de Brasília). Use isso para calcular "amanhã", "depois de amanhã", dias da semana, etc.
 ${business.description ? business.description + '\n' : ''}
 Seu papel é atender clientes via WhatsApp de forma natural, amigável e eficiente.
 
