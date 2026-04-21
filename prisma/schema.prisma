@@ -12,8 +12,8 @@ model Business {
   name        String
   ownerPhone  String
   description String?
-  hours       Json     // { open: "08:00", close: "18:00", days: [1,2,3,4,5,6] }
-  menu        Json     // [{ id, name, description, price, unit }]
+  hours       Json
+  menu        Json
   config      Json     @default("{}")
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -21,6 +21,20 @@ model Business {
 
   conversations Conversation[]
   orders        Order[]
+  motoboys      Motoboy[]
+}
+
+model Motoboy {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  name       String
+  phone      String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([businessId, phone])
 }
 
 model Conversation {
@@ -62,6 +76,17 @@ model Order {
   status          String    @default("pending")
   calendarEventId String?
   notes           String?
+
+  // Motoboy
+  motoboyPhone    String?
+  motoboyName     String?
+  motoboyStatus   String?   // notified | accepted | in_transit | delivered
+
+  // Pagamento
+  paymentId       String?
+  paymentStatus   String?   @default("pending")
+  paymentLink     String?
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

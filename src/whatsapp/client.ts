@@ -12,15 +12,26 @@ import path from 'path';
 import fs from 'fs';
 
 type MessageHandler = (phone: string, text: string) => Promise<string>;
+type MotoboyHandler = (phone: string, text: string, businessId: string) => Promise<void>;
+type PhoneChecker = (phone: string, businessId: string) => Promise<boolean>;
 
 const AUTH_DIR = path.join(process.cwd(), 'auth_state');
 const logger = pino({ level: 'silent' });
 
 let sock: WASocket | null = null;
 let messageHandler: MessageHandler | null = null;
+let motoboyHandler: MotoboyHandler | null = null;
+let motoboyChecker: PhoneChecker | null = null;
+let currentBusinessId = '';
 
 export function setMessageHandler(handler: MessageHandler) {
   messageHandler = handler;
+}
+
+export function setMotoboyHandler(handler: MotoboyHandler, checker: PhoneChecker, businessId: string) {
+  motoboyHandler = handler;
+  motoboyChecker = checker;
+  currentBusinessId = businessId;
 }
 
 export async function sendMessage(phone: string, text: string) {
@@ -57,7 +68,6 @@ export async function connect() {
     if (connection === 'close') {
       const shouldReconnect =
         (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-
       if (shouldReconnect) {
         console.log('🔄 Reconectando ao WhatsApp...');
         setTimeout(connect, 3000);
@@ -78,8 +88,8 @@ export async function connect() {
       if (msg.key.fromMe) continue;
       if (!msg.message) continue;
 
-      const phone = msg.key.remoteJid?.replace('@s.whatsapp.net', '') ?? '';
-      if (!phone) continue;
+      const rawPhone = msg.key.remoteJid?.replace('@s.whatsapp.net', '').replace('@lid', '') ?? '';
+      if (!rawPhone) continue;
 
       const text =
         msg.message.conversation ||
@@ -88,18 +98,33 @@ export async function connect() {
 
       if (!text.trim()) continue;
 
-      console.log(`📩 [${phone}]: ${text}`);
+      // Verifica se é mensagem de motoboy
+      if (motoboyChecker && motoboyHandler && currentBusinessId) {
+        try {
+          const isMotoboy = await motoboyChecker(rawPhone, currentBusinessId);
+          if (isMotoboy) {
+            console.log(`🛵 [MOTOBOY ${rawPhone}]: ${text}`);
+            await motoboyHandler(rawPhone, text, currentBusinessId);
+            continue;
+          }
+        } catch {
+          // Se checar falhar, trata como cliente normal
+        }
+      }
+
+      // Mensagem de cliente normal
+      console.log(`📩 [${rawPhone}]: ${text}`);
 
       if (messageHandler) {
         try {
-          const response = await messageHandler(phone, text);
+          const response = await messageHandler(rawPhone, text);
           if (response) {
-            await sendMessage(phone, response);
-            console.log(`📤 [${phone}]: ${response.slice(0, 80)}...`);
+            await sendMessage(rawPhone, response);
+            console.log(`📤 [${rawPhone}]: ${response.slice(0, 80)}...`);
           }
         } catch (err) {
           console.error('Erro ao processar mensagem:', err);
-          await sendMessage(phone, '⚠️ Ocorreu um erro. Tente novamente em instantes.');
+          await sendMessage(rawPhone, '⚠️ Ocorreu um erro. Tente novamente em instantes.');
         }
       }
     }
