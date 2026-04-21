@@ -87,32 +87,50 @@ export async function notifyMotoboys(order: any): Promise<void> {
     data: { motoboyStatus: 'notified' },
   });
 
-  // Timeout: se ninguém aceitar em 5 min, escalona pro dono
-  scheduleEscalation(order.id, order.businessId);
+  scheduleOwnerAlert(order);
 }
 
-function scheduleEscalation(orderId: string, businessId: string) {
-  const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
+function scheduleOwnerAlert(order: any) {
+  const now = Date.now();
+  const MIN_DELAY = 5 * 60 * 1000;
+  const ONE_HOUR = 60 * 60 * 1000;
+
+  let alertAt: number;
+  if (order.scheduledAt) {
+    const deliveryTime = new Date(order.scheduledAt).getTime();
+    alertAt = Math.max(deliveryTime - ONE_HOUR, now + MIN_DELAY);
+  } else {
+    alertAt = now + MIN_DELAY;
+  }
+
+  const delay = alertAt - now;
+  const delayMin = Math.round(delay / 60_000);
+  console.log(`⏰ Alerta ao dono agendado em ${delayMin}min para pedido #${order.id.slice(-6).toUpperCase()}`);
 
   setTimeout(async () => {
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
-    if (!order || order.motoboyStatus !== 'notified') return; // Já foi aceito
+    const current = await prisma.order.findUnique({ where: { id: order.id } });
+    if (!current || current.motoboyStatus !== 'notified') return;
 
-    console.warn(`⏰ Pedido #${orderId.slice(-6).toUpperCase()} sem motoboy após 5 min — escalando`);
+    const business = await prisma.business.findUnique({ where: { id: order.businessId } });
+    if (!business?.ownerPhone) return;
 
-    const business = await prisma.business.findUnique({ where: { id: businessId } });
-    if (business?.ownerPhone) {
-      const items = (order.items as any[]).map(i => `${i.quantity}x ${i.name}`).join(', ');
-      await sendMessage(
-        business.ownerPhone,
-        `⚠️ *Atenção! Nenhum motoboy aceitou a entrega em 5 minutos.*\n\n` +
-          `Pedido: #${orderId.slice(-6).toUpperCase()}\n` +
-          `📦 ${items}\n` +
-          `📍 ${order.address}\n\n` +
-          `Por favor, atribua um motoboy manualmente.`,
-      );
-    }
-  }, TIMEOUT_MS);
+    const minutesLeft = order.scheduledAt
+      ? Math.round((new Date(order.scheduledAt).getTime() - Date.now()) / 60_000)
+      : 0;
+
+    const items = (order.items as any[]).map((i: any) => `${i.quantity}x ${i.name}`).join(', ');
+    console.warn(`🚨 Pedido #${order.id.slice(-6).toUpperCase()} sem motoboy — alertando dono`);
+
+    await sendMessage(
+      business.ownerPhone,
+      `🚨 *URGENTE — Entrega sem motoboy!*\n\n` +
+        `Pedido: #${order.id.slice(-6).toUpperCase()}\n` +
+        `📦 ${items}\n` +
+        `📍 ${order.address}\n` +
+        (minutesLeft > 0 ? `⏱️ Faltam ~${minutesLeft} minutos para a entrega\n\n` : '\n') +
+        `Nenhum motoboy aceitou ainda. Por favor, atribua manualmente.`,
+    );
+  }, delay);
 }
 
 function parseAcceptance(text: string): { accepted: boolean; orderId?: string } {
