@@ -6,9 +6,12 @@ import { getBusinessInfo } from './tools/business';
 import { createOrder, getOrders, cancelOrder } from './tools/orders';
 import { transferToHuman } from './tools/handoff';
 
+const rawBaseURL = process.env.OPENAI_BASE_URL ?? 'http://localhost:20128';
+const baseURL = rawBaseURL.endsWith('/v1') ? rawBaseURL : `${rawBaseURL.replace(/\/$/, '')}/v1`;
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY ?? 'no-key',
-  baseURL: process.env.OPENAI_BASE_URL ?? 'http://localhost:20128',
+  baseURL,
 });
 
 const MODEL = process.env.MODEL_NAME ?? 'gpt-4.5';
