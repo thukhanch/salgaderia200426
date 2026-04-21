@@ -3,7 +3,7 @@ import Fastify from 'fastify';
 import { connect, setMessageHandler, setMotoboyHandler } from './whatsapp/client';
 import { processMessage } from './agent/agent';
 import { prisma } from './db/client';
-import { isMotoboy, processMoboyMessage } from './motoboy/motoboy.service';
+import { isMotoboy, processMoboyMessage, invalidateMotoboyCache } from './motoboy/motoboy.service';
 import { getPaymentStatus } from './payment/mercadopago';
 
 const app = Fastify({
@@ -71,6 +71,7 @@ app.post<{ Body: { name: string; phone: string } }>('/motoboys', async (req, rep
     create: { businessId: id, name, phone },
     update: { name, active: true },
   });
+  invalidateMotoboyCache();
   return motoboy;
 });
 
@@ -80,6 +81,7 @@ app.delete<{ Params: { phone: string } }>('/motoboys/:phone', async (req, reply)
     where: { businessId: id, phone: req.params.phone },
     data: { active: false },
   });
+  invalidateMotoboyCache();
   return { removed: true };
 });
 
@@ -169,10 +171,20 @@ async function main() {
     return processMessage(phone, text, bid);
   });
 
-  if (id) {
-    setMotoboyHandler(processMoboyMessage, isMotoboy, id);
-    console.log('🛵 Sistema de motoboys ativo');
-  }
+  // Handler de motoboy usa resolveBusinessId dinamicamente (não depende do id no boot)
+  setMotoboyHandler(
+    async (phone, text, _bid) => {
+      const bid = await resolveBusinessId();
+      if (bid) await processMoboyMessage(phone, text, bid);
+    },
+    async (phone, _bid) => {
+      const bid = await resolveBusinessId();
+      if (!bid) return false;
+      return isMotoboy(phone, bid);
+    },
+    id || '__dynamic__',
+  );
+  console.log('🛵 Sistema de motoboys ativo');
 
   console.log('📲 Iniciando WhatsApp...');
   await connect();
