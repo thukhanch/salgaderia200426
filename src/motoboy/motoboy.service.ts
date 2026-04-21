@@ -1,5 +1,6 @@
 import { prisma } from '../db/client';
 import { sendMessage } from '../whatsapp/client';
+import { ALERT_BEFORE_DELIVERY_MS, ALERT_MIN_DELAY_MS, ALERT_BEFORE_DELIVERY_MIN } from '../config';
 
 // Cache em memória dos telefones de motoboys (evita query no banco a cada mensagem)
 const motoboyPhoneCache = new Map<string, Set<string>>(); // businessId -> Set<phone>
@@ -92,15 +93,13 @@ export async function notifyMotoboys(order: any): Promise<void> {
 
 function scheduleOwnerAlert(order: any) {
   const now = Date.now();
-  const MIN_DELAY = 5 * 60 * 1000;
-  const ONE_HOUR = 60 * 60 * 1000;
 
   let alertAt: number;
   if (order.scheduledAt) {
     const deliveryTime = new Date(order.scheduledAt).getTime();
-    alertAt = Math.max(deliveryTime - ONE_HOUR, now + MIN_DELAY);
+    alertAt = Math.max(deliveryTime - ALERT_BEFORE_DELIVERY_MS, now + ALERT_MIN_DELAY_MS);
   } else {
-    alertAt = now + MIN_DELAY;
+    alertAt = now + ALERT_MIN_DELAY_MS;
   }
 
   const delay = alertAt - now;
@@ -127,8 +126,10 @@ function scheduleOwnerAlert(order: any) {
         `Pedido: #${order.id.slice(-6).toUpperCase()}\n` +
         `📦 ${items}\n` +
         `📍 ${order.address}\n` +
-        (minutesLeft > 0 ? `⏱️ Faltam ~${minutesLeft} minutos para a entrega\n\n` : '\n') +
-        `Nenhum motoboy aceitou ainda. Por favor, atribua manualmente.`,
+        (minutesLeft > 0
+          ? `⏱️ Faltam ~${minutesLeft} minutos para a entrega\n`
+          : '') +
+        `\nNenhum motoboy aceitou nos últimos ${ALERT_BEFORE_DELIVERY_MIN} min. Por favor, atribua manualmente.`,
     );
   }, delay);
 }

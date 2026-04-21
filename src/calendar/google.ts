@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { GOOGLE_CALENDAR_ID, GOOGLE_SERVICE_ACCOUNT_JSON } from '../config';
 
 interface EventData {
   title: string;
@@ -9,7 +10,7 @@ interface EventData {
 }
 
 function getAuth() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const raw = GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurado');
 
   const credentials = JSON.parse(raw);
@@ -22,7 +23,7 @@ function getAuth() {
 }
 
 export async function createEvent(data: EventData): Promise<string | null> {
-  const calendarId = process.env.GOOGLE_CALENDAR_ID;
+  const calendarId = GOOGLE_CALENDAR_ID;
   if (!calendarId) return null;
 
   const auth = getAuth();
@@ -45,7 +46,7 @@ export async function createEvent(data: EventData): Promise<string | null> {
 }
 
 export async function deleteEvent(eventId: string): Promise<void> {
-  const calendarId = process.env.GOOGLE_CALENDAR_ID;
+  const calendarId = GOOGLE_CALENDAR_ID;
   if (!calendarId) return;
 
   const auth = getAuth();

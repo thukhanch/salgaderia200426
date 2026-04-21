@@ -1,9 +1,5 @@
 import { ThermalPrinter, PrinterTypes, CharacterSet } from 'node-thermal-printer';
-
-const PRINTER_ENABLED = process.env.PRINTER_ENABLED === 'true';
-const PRINTER_TYPE = (process.env.PRINTER_TYPE ?? 'network') as 'network' | 'bluetooth' | 'usb';
-const PRINTER_ADDRESS = process.env.PRINTER_ADDRESS ?? '192.168.1.100';
-const PRINTER_PORT = Number(process.env.PRINTER_PORT ?? 9100);
+import { PRINTER_ENABLED, PRINTER_TYPE, PRINTER_ADDRESS, PRINTER_PORT } from '../config';
 
 function buildPrinter(): ThermalPrinter {
   let interfaceAddress: string;

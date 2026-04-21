@@ -1,4 +1,5 @@
-const MP_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN ?? '';
+import { MP_ACCESS_TOKEN, MP_WEBHOOK_URL, MP_STATEMENT_NAME, APP_URL } from '../config';
+
 const MP_BASE_URL = 'https://api.mercadopago.com';
 
 interface OrderItem {
@@ -16,8 +17,6 @@ export async function createPaymentLink(params: {
 }): Promise<string | null> {
   if (!MP_ACCESS_TOKEN) return null;
 
-  const webhookUrl = process.env.MP_WEBHOOK_URL ?? '';
-
   const body = {
     items: params.items.map(i => ({
       id: i.name.toLowerCase().replace(/\s+/g, '_'),
@@ -28,12 +27,12 @@ export async function createPaymentLink(params: {
     })),
     external_reference: params.externalRef,
     back_urls: {
-      success: `${process.env.APP_URL ?? 'http://localhost:3000'}/payment/success`,
-      failure: `${process.env.APP_URL ?? 'http://localhost:3000'}/payment/failure`,
+      success: `${APP_URL}/payment/success`,
+      failure: `${APP_URL}/payment/failure`,
     },
     auto_return: 'approved',
-    notification_url: webhookUrl || undefined,
-    statement_descriptor: process.env.MP_STATEMENT_NAME ?? 'Salgaderia',
+    notification_url: MP_WEBHOOK_URL || undefined,
+    statement_descriptor: MP_STATEMENT_NAME,
     expires: true,
     expiration_date_from: new Date().toISOString(),
     expiration_date_to: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h
