@@ -13,6 +13,7 @@ import fs from 'fs';
 
 type MessageHandler = (phone: string, text: string) => Promise<string>;
 type MotoboyHandler = (phone: string, text: string, businessId: string) => Promise<void>;
+type OwnerHandler = (phone: string, text: string, businessId: string) => Promise<void>;
 type PhoneChecker = (phone: string, businessId: string) => Promise<boolean>;
 
 const AUTH_DIR = path.join(process.cwd(), 'auth_state');
@@ -21,11 +22,18 @@ const logger = pino({ level: 'silent' });
 let sock: WASocket | null = null;
 let messageHandler: MessageHandler | null = null;
 let motoboyHandler: MotoboyHandler | null = null;
+let ownerHandler: OwnerHandler | null = null;
 let motoboyChecker: PhoneChecker | null = null;
+let ownerChecker: PhoneChecker | null = null;
 let currentBusinessId = '';
 
 export function setMessageHandler(handler: MessageHandler) {
   messageHandler = handler;
+}
+
+export function setOwnerHandler(handler: OwnerHandler, checker: PhoneChecker) {
+  ownerHandler = handler;
+  ownerChecker = checker;
 }
 
 export function setMotoboyHandler(handler: MotoboyHandler, checker: PhoneChecker, businessId: string) {
@@ -98,7 +106,21 @@ export async function connect() {
 
       if (!text.trim()) continue;
 
-      // Verifica se é mensagem de motoboy
+      // 1. Verifica se é o dono (prioridade máxima)
+      if (ownerChecker && ownerHandler) {
+        try {
+          const isOwner = await ownerChecker(rawPhone, currentBusinessId || '__dynamic__');
+          if (isOwner) {
+            console.log(`👑 [DONO ${rawPhone}]: ${text}`);
+            await ownerHandler(rawPhone, text, currentBusinessId || '__dynamic__');
+            continue;
+          }
+        } catch {
+          // Se checar falhar, segue o fluxo normal
+        }
+      }
+
+      // 2. Verifica se é motoboy
       if (motoboyChecker && motoboyHandler && currentBusinessId) {
         try {
           const isMotoboy = await motoboyChecker(rawPhone, currentBusinessId);
@@ -112,7 +134,7 @@ export async function connect() {
         }
       }
 
-      // Mensagem de cliente normal
+      // 3. Cliente normal
       console.log(`📩 [${rawPhone}]: ${text}`);
 
       if (messageHandler) {

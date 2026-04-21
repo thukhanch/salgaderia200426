@@ -1,9 +1,10 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
-import { connect, setMessageHandler, setMotoboyHandler } from './whatsapp/client';
+import { connect, setMessageHandler, setMotoboyHandler, setOwnerHandler } from './whatsapp/client';
 import { processMessage } from './agent/agent';
 import { prisma } from './db/client';
 import { isMotoboy, processMoboyMessage, invalidateMotoboyCache } from './motoboy/motoboy.service';
+import { isOwner, processOwnerCommand } from './admin/admin.service';
 import { getPaymentStatus } from './payment/mercadopago';
 
 const app = Fastify({
@@ -171,7 +172,21 @@ async function main() {
     return processMessage(phone, text, bid);
   });
 
-  // Handler de motoboy usa resolveBusinessId dinamicamente (não depende do id no boot)
+  // Handler do dono — prioridade máxima
+  setOwnerHandler(
+    async (phone, text, _bid) => {
+      const bid = await resolveBusinessId();
+      if (bid) await processOwnerCommand(phone, text, bid);
+    },
+    async (phone, _bid) => {
+      const bid = await resolveBusinessId();
+      if (!bid) return false;
+      return isOwner(phone, bid);
+    },
+  );
+  console.log('👑 Painel do dono ativo');
+
+  // Handler de motoboy
   setMotoboyHandler(
     async (phone, text, _bid) => {
       const bid = await resolveBusinessId();
